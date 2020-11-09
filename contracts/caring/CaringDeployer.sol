@@ -1,24 +1,25 @@
+// SPDX-License-Identifier: MIT
 // Project Sharing by Alpha Serpentis Developments - https://github.com/Alpha-Serpentis-Developments
 // Written by Amethyst C.
 
-pragma solidity ^0.7.4;
+pragma solidity =0.7.4;
 
-import "Caring.sol";
+import "./Caring.sol";
 
 contract CaringDeployer {
 
     address private CaringImplementation;
     address payable creator;
 
-    uint256 private creatorFee;
+    uint256 private creatorFee; // Aka the deploying fee, in wei units
 
-    modifier onlyCreator() {
+    modifier onlyCreator {
         if(msg.sender != creator) {
             revert("CaringDeployer: Not the creator!");
         }
         _;
     }
-    modifier meetCreatorFee() {
+    modifier meetCreatorFee {
         if(msg.value < creatorFee) {
             revert("CaringDeployer: Does not meet the creator fee (service fee)! Call getCreatorFee to check minimum required in Ether.");
         }
@@ -35,24 +36,23 @@ contract CaringDeployer {
         creatorFee = _creatorFee;
     }
 
-    function deployCaringContract(address _manager, string memory _contractName, bool _onlyMembersDeposit, bool _multiSig) external payable meetCreatorFee() returns(address) {
+    function deployCaringContract(address _manager, string memory _contractName, bool _onlyMembersDeposit, bool _multiSig) external payable meetCreatorFee returns(address) {
 
         address deployed = address(new Caring(_manager, _contractName, _onlyMembersDeposit, _multiSig));
         emit CaringIssued(msg.sender, deployed);
 
         return deployed;
-        //CaringImplementation.call(abi.encode(_manager, _contractName, _onlyMembersDeposit, _multiSig));
     }
-    function redeemFee() public onlyCreator() {
+    function redeemFee() public onlyCreator {
         creator.transfer(address(this).balance);
     }
 
-    function setCaringImplementation(address _caringImplementation) external onlyCreator() {
+    function setCaringImplementation(address _caringImplementation) external onlyCreator {
         require(_caringImplementation != address(0), "CaringDeployer: Address is a zero address!");
 
         CaringImplementation = _caringImplementation;
     }
-    function setCreatorFee(uint256 _fee) external onlyCreator() {
+    function setCreatorFee(uint256 _fee) external onlyCreator {
         creatorFee = _fee;
     }
 
