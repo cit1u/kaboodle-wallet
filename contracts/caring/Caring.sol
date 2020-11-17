@@ -9,8 +9,8 @@ struct TransferRequest {
     address token; // If applicable
     address payable to;
     uint256 amount; // Amount of tokens withdrawing
-    uint256 approved; // Current approvals
-    uint256 rejected; // Current rejected
+    address[] approved; // Current approvals
+    address[] rejected; // Current rejected
 }
 
 struct Member {
@@ -53,6 +53,9 @@ contract Caring {
     }
     modifier needMultiSig() {
         if(multiSig) {
+            // Check if it passes multi-sig
+            
+            
             
         }
         _;
@@ -81,7 +84,9 @@ contract Caring {
     
     // INTERNAL FUNCTIONS
     
-    
+    function removePendingTx(uint256 _index) internal {
+        
+    }
     
     // TRANSFER FUNCTIONS
     
