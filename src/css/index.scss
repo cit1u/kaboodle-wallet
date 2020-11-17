@@ -1,0 +1,35 @@
+$primaryColor: #FFFFFF;
+$secondaryColor: #e4e4e4;
+$globalFont: Arial;
+$headerFontSize: 150%;
+
+html,
+body {
+    margin: 0px;
+    padding: 0px;
+    font-family: $globalFont;
+}
+
+div#main {
+    padding: 5px;
+}
+
+header#header {
+    background-color: $secondaryColor;
+    padding: 1px;
+    font-size: $headerFontSize;
+
+    li {
+        padding: 0px;
+        padding-left: 20px;
+        padding-right: 20px;
+        margin: 0px;
+        display: inline;
+        list-style-type: none;
+        a {
+            color: black;
+            text-decoration: none;
+            margin: 3px;
+        }
+    }
+}
