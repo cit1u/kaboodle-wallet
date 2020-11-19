@@ -12,6 +12,7 @@ contract CaringDeployer {
     address payable creator;
 
     uint256 private creatorFee; // Aka the deploying fee, in wei units
+    bool private sendDirect;
 
     modifier onlyCreator {
         if(msg.sender != creator) {
@@ -39,7 +40,11 @@ contract CaringDeployer {
     function deployCaringContract(address _manager, string memory _contractName, bool _onlyMembersDeposit, bool _multiSig) external payable meetCreatorFee returns(address) {
 
         address deployed = address(new Caring(_manager, _contractName, _onlyMembersDeposit, _multiSig));
+        require(deployed != address(0), "CaringDeployer: Contract creation failed!");
         emit CaringIssued(msg.sender, deployed);
+
+        if(sendDirect)
+            creator.transfer(msg.value);
 
         return deployed;
     }

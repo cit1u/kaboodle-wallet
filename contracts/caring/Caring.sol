@@ -6,8 +6,8 @@ pragma solidity =0.7.4;
 
 struct TransferRequest {
     address member; // Address of the member requesting
-    address token; // If applicable
     address payable to;
+    address token; // If applicable
     uint256 amount; // Amount of tokens withdrawing
     address[] approved; // Current approvals
     address[] rejected; // Current rejected
@@ -23,19 +23,21 @@ struct Member {
 contract Caring {
     
     mapping(address => Member) private members;
-    TransferRequest[] private pendingOutbound;
+    mapping(address => TransferRequest[]) private pendingOutbound;
     
-    string identifier;
+    string private identifier;
     
-    bool onlyMembersDeposit;
-    uint256 totalMembers;
+    bool private onlyMembersDeposit;
+    uint256 private totalMembers;
     
-    bool multiSig;
-    uint256 minimumSig;
-    uint256 pendingTransfers;
+    bool private multiSig;
+    uint256 private minimumSig;
+    uint256 private pendingTransfers;
+    
+    // Events
     
     event Deposit(address _from, uint256 amount);
-    event PendingTransfer(address _from, address _to, address _token, uint256 _amount);
+    event PendingTransfer(address _from, address _to, address _token, uint256 _amount, bytes32 _transferId);
     event TransferExecute(address _from, address _to, address _token, bool _success);
     event Withdrawal(address _from, address _to, uint256 _amount);
     
@@ -78,36 +80,45 @@ contract Caring {
         members[_manager].allowedToWithdraw = true;
     }
     
-    receive() payable external onlyMember() {
+    receive() payable external onlyMember() { // This does not reject mined Ether or from a selfdestruct
         emit Deposit(msg.sender, msg.value);
     }
     
     // INTERNAL FUNCTIONS
+    function addPendingTx(TransferRequest memory _tx) internal {
+        pendingOutbound[msg.sender][pendingOutbound[msg.sender].length] = _tx;
+    }
+    function removePendingTx(bytes32 _index) internal {
     
-    function removePendingTx(uint256 _index) internal {
         
     }
     
     // TRANSFER FUNCTIONS
     
-    function requestTransfer(address _to, address _token, uint256 _amount) external onlyMember {
+    function requestTransfer(address payable _to, address _token, uint256 _amount) public onlyMember returns(bytes32) {
+        if(_token == address(0))
+            require(address(this).balance > _amount, "Caring: Insufficient funds to withdraw!");
+        
+        bytes32 transferId = keccak256(abi.encode(msg.sender, _to, _token, _amount));
+        TransferRequest memory transferReq;
+        
+        transferReq.member = msg.sender;
+        transferReq.to = _to;
+        transferReq.token = _token;
+        transferReq.amount = _amount;
+        
+        addPendingTx(transferReq);
+        emit PendingTransfer(msg.sender, _to, _token, _amount, transferId);
+        
+        return transferId;
+    }
+    function approveTransfer(bytes32 _index, bool _approve) public onlyMember {
         
     }
-    function approveTransfer(uint256 _index, bool _approve) external onlyMember {
-        
+    function attemptTransfer(bytes32 _index) public onlyMember needMultiSig {
+      
     }
-    function attemptTransfer(uint256 _index) external onlyMember needMultiSig {
-        
-        if(pendingOutbound[_index].token == address(0)) {
-            require(pendingOutbound[_index].amount <= address(this).balance, "Caring: Insufficient Ether balance!");
-            
-            pendingOutbound[_index].to.transfer(pendingOutbound[_index].amount);
-        } else {
-            
-        }
-        
-    }
-    function cancelTransfer(uint256 _index) external onlyMember {
+    function cancelTransfer(bytes32 _index) public onlyMember {
         
     }
     
@@ -121,8 +132,9 @@ contract Caring {
         totalMembers++;
     }
     function removeMember(address _member) public onlyManager {
-        totalMembers--;
         delete members[_member];
+        
+        totalMembers--;
     }
     function addManager(address _newManager) external onlyManager {
         if(members[_newManager].adr == address(0)) {
@@ -152,7 +164,7 @@ contract Caring {
         multiSig = _enable;
     }
     function setMinimumMultiSig(uint256 _amount) external onlyManager {
-        require(_amount <= totalMembers, "Caring: Invalid minimum multi-signature");
+        require(_amount <= totalMembers && _amount > 0, "Caring: Invalid minimum multi-signature");
         minimumSig = _amount;
     }
     
