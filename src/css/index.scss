@@ -1,14 +1,25 @@
+/*
+    ********** PROJECT SHARING WEB **********
+
+    Written by BadBoyHaloCat and Drago
+*/
+
 $primaryColor: #FFFFFF;
 $secondaryColor: #e4e4e4;
-$globalFont: Arial;
+$globalFont: 'Source Sans Pro', sans-serif;
+$globalFontWeight: 200;
 $headerFontSize: 100% + 50%;
 $dividerFontSize: $headerFontSize * 1.5;
+
+// import fonts
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,200;1,300;1,400;1,600;1,700;1,900&display=swap');
 
 html,
 body {
     margin: 0px;
     padding: 0px;
     font-family: $globalFont;
+    font-weight: $globalFontWeight;
 }
 
 div#main {
@@ -16,9 +27,9 @@ div#main {
 }
 
 header#header {
+    position: sticky;
     background-color: $secondaryColor;
     padding: 1px;
-    height: 100px;
     font-size: $headerFontSize;
 
     span.divider {
@@ -40,6 +51,23 @@ header#header {
             color: black;
             text-decoration: none;
             margin: 3px;
+        }
+    }
+}
+
+// responsive header
+@media screen and (max-width: 953px) {
+    header#header {
+        span.divider {
+            display: none;
+        }
+
+        li {
+            display: block;
+            top: 0px;
+            padding: 0px;
+            padding-left: 0px;
+            padding-right: 0px;
         }
     }
 }
