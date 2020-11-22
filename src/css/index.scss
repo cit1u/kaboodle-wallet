@@ -31,6 +31,10 @@ header#header {
     background-color: $secondaryColor;
     padding: 1px;
     font-size: $headerFontSize;
+    
+    -webkit-box-shadow: 0px 5px 5px 0px rgba(0,0,0,0.75);
+    -moz-box-shadow: 0px 5px 5px 0px rgba(0,0,0,0.75);
+    box-shadow: 0px 5px 5px 0px rgba(0,0,0,0.75);
 
     span.divider {
         font-size: $dividerFontSize;
@@ -52,22 +56,10 @@ header#header {
             text-decoration: none;
             margin: 3px;
         }
-    }
-}
 
-// responsive header
-@media screen and (max-width: 953px) {
-    header#header {
-        span.divider {
-            display: none;
-        }
-
-        li {
-            display: block;
-            top: 0px;
-            padding: 0px;
-            padding-left: 0px;
-            padding-right: 0px;
+        &:hover {
+            border-bottom: 10px #666666;
+            padding-bottom: 2px;
         }
     }
 }
