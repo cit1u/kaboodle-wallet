@@ -8,7 +8,7 @@ import "./Caring.sol";
 
 contract CaringDeployer {
 
-    address private CaringImplementation;
+    address immutable private CaringImplementation;
     address payable creator;
 
     uint256 private creatorFee; // Aka the deploying fee, in wei units
@@ -52,11 +52,6 @@ contract CaringDeployer {
         creator.transfer(address(this).balance);
     }
 
-    function setCaringImplementation(address _caringImplementation) external onlyCreator {
-        require(_caringImplementation != address(0), "CaringDeployer: Address is a zero address!");
-
-        CaringImplementation = _caringImplementation;
-    }
     function setCreatorFee(uint256 _fee) external onlyCreator {
         creatorFee = _fee;
     }
