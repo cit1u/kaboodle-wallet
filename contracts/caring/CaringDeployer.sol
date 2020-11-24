@@ -8,7 +8,6 @@ import "./Caring.sol";
 
 contract CaringDeployer {
 
-    address immutable private CaringImplementation;
     address payable creator;
 
     uint256 private creatorFee; // Aka the deploying fee, in wei units
@@ -29,12 +28,10 @@ contract CaringDeployer {
 
     event CaringIssued(address _caller, address _deployed);
 
-    constructor(address _caringImplementation, uint256 _creatorFee) {
-        require(_caringImplementation != address(0), "CaringDeployer: Address is a zero address!");
-
-        CaringImplementation = _caringImplementation;
+    constructor(uint256 _creatorFee, bool _sendDirect) {
         creator = msg.sender;
         creatorFee = _creatorFee;
+        sendDirect = _sendDirect;
     }
 
     function deployCaringContract(address _manager, string memory _contractName, bool _onlyMembersDeposit, bool _multiSig) external payable meetCreatorFee returns(address) {
@@ -56,9 +53,6 @@ contract CaringDeployer {
         creatorFee = _fee;
     }
 
-    function getCaringImplementation() public view returns(address) {
-        return CaringImplementation;
-    }
     function getCreatorFee() public view returns(uint256) {
         return creatorFee;
     }

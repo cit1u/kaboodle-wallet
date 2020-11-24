@@ -3,3 +3,5 @@ contracts/artifacts/Caring.json
 contracts/artifacts/Caring_metadata.json
 contracts/artifacts/CaringDeployer.json
 contracts/artifacts/CaringDeployer_metadata.json
+build
+node_modules

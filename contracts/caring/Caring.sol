@@ -88,9 +88,20 @@ contract Caring {
     function addPendingTx(TransferRequest memory _tx) internal {
         pendingOutbound[msg.sender][pendingOutbound[msg.sender].length] = _tx;
     }
-    function removePendingTx(bytes32 _index) internal {
-    
-        
+    function removePendingTx(address _member, bytes32 _index) internal {
+        // OPTIMIZE THIS OR REWRITE IT
+        for(uint256 i = 0; i < pendingOutbound[_member].length; i++) {
+            if(_index == keccak256(
+                abi.encode(
+                    _member, 
+                    pendingOutbound[_member][i].to, 
+                    pendingOutbound[_member][i].token, 
+                    pendingOutbound[_member][i].amount
+                    ))) {
+                        
+                delete pendingOutbound[_member][i];
+            }
+        }
     }
     
     // TRANSFER FUNCTIONS
