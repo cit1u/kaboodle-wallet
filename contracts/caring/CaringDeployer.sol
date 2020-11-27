@@ -2,7 +2,7 @@
 // Project Sharing by Alpha Serpentis Developments - https://github.com/Alpha-Serpentis-Developments
 // Written by Amethyst C.
 
-pragma solidity =0.7.4;
+pragma solidity ^0.7.4;
 
 import "./Caring.sol";
 

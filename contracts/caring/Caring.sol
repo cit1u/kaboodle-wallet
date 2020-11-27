@@ -2,15 +2,18 @@
 // Project Sharing by Alpha Serpentis Developments - https://github.com/Alpha-Serpentis-Developments
 // Written by Amethyst C. 
 
-pragma solidity =0.7.4;
+pragma solidity ^0.7.4;
+
+import "../math/SafeMath.sol";
 
 struct TransferRequest {
     address member; // Address of the member requesting
-    address payable to;
+    address payable to; // Address of the receiving party
     address token; // If applicable
     uint256 amount; // Amount of tokens withdrawing
     address[] approved; // Current approvals
     address[] rejected; // Current rejected
+    bytes32 ident; // The identifier of the TransferRequest
 }
 
 struct Member {
@@ -22,9 +25,12 @@ struct Member {
 
 contract Caring {
     
+    using SafeMath for uint256;
+
     mapping(address => Member) private members;
-    mapping(address => TransferRequest[]) private pendingOutbound;
-    
+    mapping(bytes32 => TransferRequest) private pendingOutbound;
+    mapping(address => uint256) private userNonce;
+
     string private identifier;
     
     bool private onlyMembersDeposit;
@@ -37,7 +43,8 @@ contract Caring {
     // Events
     
     event Deposit(address _from, uint256 amount);
-    event PendingTransfer(address _from, address _to, address _token, uint256 _amount, bytes32 _transferId);
+    event PendingTransfer(address _from, address _to, address _token, uint256 _amount, uint256 _nonce, bytes32 _transferId);
+    event TransferCancelled(address _from, bytes32 _transferId);
     event TransferExecute(address _from, address _to, address _token, bool _success);
     event Withdrawal(address _from, address _to, uint256 _amount);
     
@@ -50,15 +57,6 @@ contract Caring {
     modifier onlyMember {
         if((members[msg.sender].adr == address(0)) && onlyMembersDeposit) {
             revert("Caring: Must be a member!");
-        }
-        _;
-    }
-    modifier needMultiSig() {
-        if(multiSig) {
-            // Check if it passes multi-sig
-            
-            
-            
         }
         _;
     }
@@ -85,23 +83,30 @@ contract Caring {
     }
     
     // INTERNAL FUNCTIONS
-    function addPendingTx(TransferRequest memory _tx) internal {
-        pendingOutbound[msg.sender][pendingOutbound[msg.sender].length] = _tx;
-    }
-    function removePendingTx(address _member, bytes32 _index) internal {
-        // OPTIMIZE THIS OR REWRITE IT
-        for(uint256 i = 0; i < pendingOutbound[_member].length; i++) {
-            if(_index == keccak256(
-                abi.encode(
-                    _member, 
-                    pendingOutbound[_member][i].to, 
-                    pendingOutbound[_member][i].token, 
-                    pendingOutbound[_member][i].amount
-                    ))) {
-                        
-                delete pendingOutbound[_member][i];
-            }
+    function verifyMultiSig(TransferRequest memory _tx) internal {
+        if(_tx.approved.length >= minimumSig) {// If passes definitely, execute transfer
+            executeSomeTx(_tx);
+        } else if(totalMembers.sub(_tx.rejected.length) < minimumSig) { // If fails definitely, cancel the transfer
+            removePendingTx(_tx.ident);
         }
+    }
+    function addPendingTx(TransferRequest memory _tx) internal {
+        pendingOutbound[_tx.ident] = _tx;
+    }
+    function removePendingTx(bytes32 _ident) internal {
+        delete pendingOutbound[_ident];
+    }
+    function executeSomeTx(TransferRequest memory _tx) internal {
+        if(_tx.token == address(0))
+            executeEtherTx(_tx.ident);
+        else
+            executeTokenTx(_tx.ident);
+    }
+    function executeEtherTx(bytes32 _ident) internal {
+
+    }
+    function executeTokenTx(bytes32 _ident) internal {
+
     }
     
     // TRANSFER FUNCTIONS
@@ -110,7 +115,13 @@ contract Caring {
         if(_token == address(0))
             require(address(this).balance > _amount, "Caring: Insufficient funds to withdraw!");
         
-        bytes32 transferId = keccak256(abi.encode(msg.sender, _to, _token, _amount));
+        bytes32 transferId = keccak256(abi.encode(
+            msg.sender, 
+            _to, 
+            _token, 
+            _amount,
+            userNonce[msg.sender]++
+            ));
         TransferRequest memory transferReq;
         
         transferReq.member = msg.sender;
@@ -119,18 +130,32 @@ contract Caring {
         transferReq.amount = _amount;
         
         addPendingTx(transferReq);
-        emit PendingTransfer(msg.sender, _to, _token, _amount, transferId);
+        emit PendingTransfer(msg.sender, _to, _token, _amount, userNonce[msg.sender] - 1, transferId);
         
         return transferId;
     }
     function approveTransfer(bytes32 _index, bool _approve) public onlyMember {
+        TransferRequest memory transferReq;
+        transferReq = pendingOutbound[_index];
         
+        // Approve or deny the transaction
+
+        // Check if able to execute or has failed the 51%+ requirement
+        if(multiSig)
+            verifyMultiSig(transferReq);
+       
+        attemptTransfer(_index);
+
+
     }
-    function attemptTransfer(bytes32 _index) public onlyMember needMultiSig {
-      
+    function attemptTransfer(bytes32 _index) public onlyMember {
+    
     }
     function cancelTransfer(bytes32 _index) public onlyMember {
-        
+        require(pendingOutbound[_index].member == msg.sender, "Caring: Must be the member initiating the transfer request to cancel!");
+        delete pendingOutbound[_index];
+
+        emit TransferCancelled(msg.sender, _index);
     }
     
     // MEMBER MANAGEMENT FUNCTIONS
@@ -176,7 +201,7 @@ contract Caring {
     }
     function setMinimumMultiSig(uint256 _amount) external onlyManager {
         require(_amount <= totalMembers && _amount > 0, "Caring: Invalid minimum multi-signature");
-        minimumSig = _amount;
+        minimumSig = _amount; // This does NOT check if it passes a 50%...
     }
     
     // VIEW FUNCTIONS
