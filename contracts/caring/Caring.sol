@@ -14,6 +14,7 @@ struct TransferRequest {
     address[] approved; // Current approvals
     address[] rejected; // Current rejected
     bytes32 ident; // The identifier of the TransferRequest
+    bool exists; // Used to know if it exists in the mapping or not
 }
 
 struct Member {
@@ -30,15 +31,17 @@ contract Caring {
     mapping(address => Member) private members;
     mapping(bytes32 => TransferRequest) private pendingOutbound;
     mapping(address => uint256) private userNonce;
+    mapping(address => bool) private authorizedModules;
 
-    uint256 immutable MAX_ALLOWED_MANAGERS;
+    uint256 private immutable MAX_ALLOWED_MANAGERS;
 
     string private identifier;
     
-    bool private onlyMembersDeposit;
+    uint256 private totalManagers;
     uint256 private totalMembers;
     
     bool private multiSig;
+    bool private allowModules;
     uint256 private minimumSig;
     uint256 private pendingTransfers;
     
@@ -49,31 +52,48 @@ contract Caring {
     event TransferCancelled(address _from, bytes32 _transferId);
     event TransferExecute(address _from, address _to, address _token, bool _success);
     event Withdrawal(address _from, address _to, uint256 _amount);
+    event PendingModule(address _module, address _proposer);
+    event ModuleAdded(address _module);
+    event ModuleRemoved(address _module);
+    event ModuleAdditionCancelled(address _module, address _proposer);
     
     modifier onlyManager {
-        if(!members[msg.sender].isManager) {
-            revert("Caring: Must be the manager!");
-        }
+        require(
+            members[msg.sender].isManager, 
+            "onlyManager: Must be the manager!"
+            );
         _;
     }
     modifier onlyMember {
-        if((members[msg.sender].adr == address(0)) && onlyMembersDeposit) {
-            revert("Caring: Must be a member!");
-        }
+        require(
+            members[msg.sender].adr != address(0),
+            "onlyMember: Must be a member!"
+            );
         _;
     }
     
-    constructor(address _manager, uint256 _maxManagers, string memory _contractName, bool _onlyMembersDeposit, bool _multiSig) {
-        require(_manager != address(0), "Caring: Must have a manager!");
-        require(_maxManagers > 0 && _maxManagers < (2**256) - 1, "Caring: Must have at least one manager (this includes yourself)!");
-        require(bytes(_contractName).length != 0, "Caring: Must have a contract identifier!");
+    constructor(address _manager, uint256 _maxManagers, string memory _contractName, bool _multiSig) {
+        require(
+            _manager != address(0), 
+            "Caring: Must have a manager!"
+            );
+        require(
+            _maxManagers > 0 && 
+            _maxManagers < (2**256) - 1, 
+            "Caring: Must have at least one manager (this includes yourself)!"
+            );
+        require(
+            bytes(_contractName).length != 0, 
+            "Caring: Must have a contract identifier!"
+            );
         
         MAX_ALLOWED_MANAGERS = _maxManagers;
         identifier = _contractName;
-        onlyMembersDeposit = _onlyMembersDeposit;
+        totalManagers = 1;
         totalMembers = 1;
         
         multiSig = _multiSig;
+        allowModules = false;
         minimumSig = 1;
         
         members[_manager].adr = _manager;
@@ -104,18 +124,23 @@ contract Caring {
     }
     function executeSomeTx(TransferRequest memory _tx) internal {
         if(_tx.token == address(0))
-            executeEtherTx(_tx.ident);
+            executeEtherTx(_tx);
         else
-            executeTokenTx(_tx.ident);
+            executeTokenTx(_tx);
     }
-    function executeEtherTx(bytes32 _ident) internal {
-        require(pendingOutbound[_ident].amount <= address(this).balance, "Caring (executeEtherTx): Cannot withdraw more than there actually is!");
-        pendingOutbound[_ident].to.transfer(pendingOutbound[_ident].amount);
+    function executeEtherTx(TransferRequest memory _tx) internal {
+        if(pendingOutbound[_tx.ident].exists) {
+            require(
+                pendingOutbound[_tx.ident].amount <= address(this).balance, 
+                "executeEtherTx(): Cannot withdraw more than there actually is!"
+                );
+            pendingOutbound[_tx.ident].to.transfer(pendingOutbound[_tx.ident].amount);
 
-        emit TransferExecute(pendingOutbound[_ident].member, pendingOutbound[_ident].to, address(0), true);
-        removePendingTx(_ident);
+            emit TransferExecute(pendingOutbound[_tx.ident].member, pendingOutbound[_tx.ident].to, address(0), true);
+            removePendingTx(_tx.ident);
+        }
     }
-    function executeTokenTx(bytes32 _ident) internal {
+    function executeTokenTx(TransferRequest memory _tx) internal {
 
     }
     
@@ -123,7 +148,12 @@ contract Caring {
     
     function requestTransfer(address payable _to, address _token, uint256 _amount) public onlyMember returns(bytes32) {
         if(_token == address(0))
-            require(address(this).balance > _amount, "Caring: Insufficient funds to withdraw!");
+            require(
+                address(this).balance > _amount, 
+                "requestTransfer(): Insufficient funds to withdraw!"
+                );
+        
+        // !!! TODO: Add ERC20 require balance check too!!!
         
         bytes32 transferId = keccak256(abi.encode(
             msg.sender, 
@@ -139,12 +169,20 @@ contract Caring {
         transferReq.token = _token;
         transferReq.amount = _amount;
         
-        addPendingTx(transferReq);
-        emit PendingTransfer(msg.sender, _to, _token, _amount, userNonce[msg.sender] - 1, transferId);
+        if(multiSig) {
+            addPendingTx(transferReq);
+            emit PendingTransfer(msg.sender, _to, _token, _amount, userNonce[msg.sender] - 1, transferId);
+        } else {
+            executeSomeTx(transferReq);
+        }
         
         return transferId;
     }
     function approveTransfer(bytes32 _index, bool _approve) public onlyMember {
+        require(
+            multiSig, 
+            "approveTransfer(): Can only be used if multi-sig mode is enabled!"
+            );
         TransferRequest storage transferReq;
         transferReq = pendingOutbound[_index];
         
@@ -155,15 +193,17 @@ contract Caring {
             transferReq.rejected.push(msg.sender);
         }
         // Check if able to execute or has failed the 51%+ requirement
-        if(multiSig)
-            verifyMultiSig(transferReq);
+        verifyMultiSig(transferReq);
 
     }
     function attemptTransfer(bytes32 _index) public onlyMember {
         verifyMultiSig(pendingOutbound[_index]);
     }
     function manualCancelTransfer(bytes32 _index) public onlyMember {
-        require(pendingOutbound[_index].member == msg.sender, "Caring (manualCancelTransfer): Must be the member initiating the transfer request to cancel!");
+        require(
+            pendingOutbound[_index].member == msg.sender, 
+            "manualCancelTransfer(): Must be the member initiating the transfer request to cancel!"
+            );
         removePendingTx(_index);
         emit TransferCancelled(pendingOutbound[_index].member, _index);
     }
@@ -183,18 +223,55 @@ contract Caring {
         totalMembers--;
     }
     function addManager(address _newManager) public onlyManager {
-        // require(MAX_ALLOWED_MANAGERS);
+        require(
+            totalManagers < MAX_ALLOWED_MANAGERS, 
+            "addManager(): Maximum managers reached!"
+            );
         if(members[_newManager].adr == address(0)) {
             addMember(_newManager, true, true);
         }
         
         members[_newManager].isManager = true;
+        totalManagers++;
     }
     function removeManager(address _manager) public onlyManager {
-        require(msg.sender != _manager, "Caring: Cannot remove manager from yourself!");
+        require(
+            msg.sender != _manager, 
+            "removeManager(): Cannot remove manager from yourself!"
+            );
         
         members[_manager].isManager = false;
+        totalManagers--;
     }
+
+    // MODULE FUNCTIONS
+
+    function addModule(address _module) public onlyManager {
+        require(
+            _module != address(0), 
+            "addModule(): Invalid module address!"
+            );
+    }
+    function removeModule(address _module) public onlyManager {
+        require(
+            _module != address(0),
+            "removeModule(): Invalid module address!"
+        );
+    }
+    function expediteModuleAddition(address _module) public onlyManager {
+        require(
+            _module != address(0),
+            "addModule(): Invalid module address!"
+        );
+    }
+    function cancelPendingModule(address _module) public onlyManager {
+
+    }
+    /*
+    function interactWithModule(address _module, bytes32 _data) external onlyMember {
+
+    }
+    */
     
     // SIMPLE SETTER FUNCTIONS
     
@@ -204,14 +281,15 @@ contract Caring {
     function setMemberAllowedToWithdraw(address _member, bool _allowed) public onlyManager {
         members[_member].allowedToWithdraw = _allowed;
     }
-    function setOnlyMemberDeposit(bool _allow) public onlyManager {
-        onlyMembersDeposit = _allow;
-    }
     function setMultiSig(bool _enable) public onlyManager {
         multiSig = _enable;
     }
     function setMinimumMultiSig(uint256 _amount, bool _useSuggested) public onlyManager {
-        require(_amount <= totalMembers && _amount > 0, "Caring: Invalid minimum multi-signature");
+        require(
+            _amount <= totalMembers && 
+            _amount > 0, 
+            "setMinimumMultiSig(): Invalid minimum multi-signature"
+            );
 
         if(_useSuggested)
             minimumSig = suggestedSigners(totalMembers);
@@ -222,18 +300,24 @@ contract Caring {
     // MISC FUNCTIONS
 
     function suggestedSigners(uint256 _count) public pure returns(uint256) {
-        require(_count > 0 && _count < (2**256) - 1, "Caring (suggestedSigners): Invalid '_count' value!");
+        require(
+            _count > 0 
+            && _count < (2**256) - 1, 
+            "suggestedSigners(): Invalid '_count' value!"
+            );
 
-        
+        uint256 recommended;
+
+        recommended = _count/2 + _count%2;
+
+        return recommended;
+
     }
     
     // VIEW FUNCTIONS
     
     function getIdentifier() public view returns(string memory) {
         return identifier;
-    }
-    function isOnlyMemberDeposits() public view returns(bool) {
-        return onlyMembersDeposit;
     }
     function getTotalMembers() public view returns(uint256) {
         return totalMembers;
