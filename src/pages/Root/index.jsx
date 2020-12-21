@@ -6,5 +6,5 @@ export function Root() {
         <div id="root-container">
             <Nav />
         </div>
-    )
+    );
 }
