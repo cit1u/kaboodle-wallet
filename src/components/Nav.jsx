@@ -1,24 +1,16 @@
-import { Divider } from './';
+import { Divider, NavLink } from './';
 
 export function Nav() {
     return (
         <div id="nav">
             <ul>
-                <li>
-                    <a href="/">Home</a>
-                </li>
+                <NavLink href="/">Home</NavLink>
                 <Divider />
-                <li>
-                    <a href="/deploy">Deploy New Caring Wallet</a>
-                </li>
+                <NavLink href="/deploy">Deploy New Caring Wallet</NavLink>
                 <Divider />
-                <li>
-                    <a href="/configure">Configure Caring Wallet</a>
-                </li>
+                <NavLink href="/configure">Configure Caring Wallet</NavLink>
                 <Divider />
-                <li>
-                    <a href="/source">Source Code</a>
-                </li>
+                <NavLink href="/source">Source Code</NavLink>
             </ul>
         </div>
     );
