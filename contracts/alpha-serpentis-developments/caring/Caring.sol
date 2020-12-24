@@ -4,7 +4,15 @@
 
 pragma solidity ^0.7.4;
 
-import "../math/SafeMath.sol";
+import "../ERC677/ERC677Receiver.sol";
+import "../../openzeppelin/math/SafeMath.sol";
+
+struct ModuleRequest {
+    address module; // Address of the module to add
+    address proposer; // Address of the proposer
+    uint256 automaticPass; // UNIX time when the module request is automatically passed
+    address[] approved; // Addresses of managers who accepted 
+}
 
 struct TransferRequest {
     address member; // Address of the member requesting
@@ -24,13 +32,14 @@ struct Member {
     bool allowedToWithdraw; // Is allowed to withdraw
 }
 
-contract Caring {
+contract Caring is ERC677Receiver {
     
     using SafeMath for uint256;
 
     mapping(address => Member) private members;
     mapping(bytes32 => TransferRequest) private pendingOutbound;
     mapping(address => uint256) private userNonce;
+    mapping(address => ModuleRequest) private pendingModules;
     mapping(address => bool) private authorizedModules;
 
     uint256 private immutable MAX_ALLOWED_MANAGERS;
@@ -43,6 +52,7 @@ contract Caring {
     bool private multiSig;
     bool private allowModules;
     uint256 private minimumSig;
+    uint256 private moduleAutoAcceptLength;
     uint256 private pendingTransfers;
     
     // Events
@@ -52,7 +62,7 @@ contract Caring {
     event TransferCancelled(address _from, bytes32 _transferId);
     event TransferExecute(address _from, address _to, address _token, bool _success);
     event Withdrawal(address _from, address _to, uint256 _amount);
-    event PendingModule(address _module, address _proposer);
+    event PendingModule(address _module, address _proposer, uint256 _acceptAtUnix);
     event ModuleAdded(address _module);
     event ModuleRemoved(address _module);
     event ModuleAdditionCancelled(address _module, address _proposer);
@@ -61,31 +71,35 @@ contract Caring {
         require(
             members[msg.sender].isManager, 
             "onlyManager: Must be the manager!"
-            );
+        );
         _;
     }
     modifier onlyMember {
         require(
             members[msg.sender].adr != address(0),
             "onlyMember: Must be a member!"
-            );
+        );
         _;
     }
     
-    constructor(address _manager, uint256 _maxManagers, string memory _contractName, bool _multiSig) {
+    constructor(address _manager, uint256 _maxManagers, string memory _contractName, bool _multiSig, uint256 _moduleAutoAcceptLength) {
         require(
             _manager != address(0), 
             "Caring: Must have a manager!"
-            );
+        );
         require(
             _maxManagers > 0 && 
             _maxManagers < (2**256) - 1, 
             "Caring: Must have at least one manager (this includes yourself)!"
-            );
+        );
         require(
             bytes(_contractName).length != 0, 
             "Caring: Must have a contract identifier!"
-            );
+        );
+        require(
+            _moduleAutoAcceptLength < (2**256) - 1,
+            "Caring: Invalid _moduleAutoAcceptLength value passed!"
+        );
         
         MAX_ALLOWED_MANAGERS = _maxManagers;
         identifier = _contractName;
@@ -95,6 +109,7 @@ contract Caring {
         multiSig = _multiSig;
         allowModules = false;
         minimumSig = 1;
+        moduleAutoAcceptLength = _moduleAutoAcceptLength;
         
         members[_manager].adr = _manager;
         members[_manager].isManager = true;
@@ -133,7 +148,7 @@ contract Caring {
             require(
                 pendingOutbound[_tx.ident].amount <= address(this).balance, 
                 "executeEtherTx(): Cannot withdraw more than there actually is!"
-                );
+            );
             pendingOutbound[_tx.ident].to.transfer(pendingOutbound[_tx.ident].amount);
 
             emit TransferExecute(pendingOutbound[_tx.ident].member, pendingOutbound[_tx.ident].to, address(0), true);
@@ -141,6 +156,9 @@ contract Caring {
         }
     }
     function executeTokenTx(TransferRequest memory _tx) internal {
+
+    }
+    function authorizeModule(address _module) internal {
 
     }
     
@@ -151,7 +169,7 @@ contract Caring {
             require(
                 address(this).balance > _amount, 
                 "requestTransfer(): Insufficient funds to withdraw!"
-                );
+            );
         
         // !!! TODO: Add ERC20 require balance check too!!!
         
@@ -182,7 +200,7 @@ contract Caring {
         require(
             multiSig, 
             "approveTransfer(): Can only be used if multi-sig mode is enabled!"
-            );
+        );
         TransferRequest storage transferReq;
         transferReq = pendingOutbound[_index];
         
@@ -203,9 +221,12 @@ contract Caring {
         require(
             pendingOutbound[_index].member == msg.sender, 
             "manualCancelTransfer(): Must be the member initiating the transfer request to cancel!"
-            );
+        );
         removePendingTx(_index);
         emit TransferCancelled(pendingOutbound[_index].member, _index);
+    }
+    function onTokenTransfer(address _from, uint256 _amount, bytes memory _data) public override returns(bool success) {
+
     }
     
     // MEMBER MANAGEMENT FUNCTIONS
@@ -226,7 +247,7 @@ contract Caring {
         require(
             totalManagers < MAX_ALLOWED_MANAGERS, 
             "addManager(): Maximum managers reached!"
-            );
+        );
         if(members[_newManager].adr == address(0)) {
             addMember(_newManager, true, true);
         }
@@ -238,7 +259,7 @@ contract Caring {
         require(
             msg.sender != _manager, 
             "removeManager(): Cannot remove manager from yourself!"
-            );
+        );
         
         members[_manager].isManager = false;
         totalManagers--;
@@ -250,21 +271,48 @@ contract Caring {
         require(
             _module != address(0), 
             "addModule(): Invalid module address!"
-            );
+        );
+        
+        ModuleRequest memory moduleReq;
+        
+        moduleReq.module = _module;
+        moduleReq.proposer = msg.sender;
+        moduleReq.automaticPass = moduleAutoAcceptLength.add(block.timestamp);
+
+        pendingModules[_module] = moduleReq;
+        emit PendingModule(_module, msg.sender, moduleReq.automaticPass);
     }
     function removeModule(address _module) public onlyManager {
         require(
             _module != address(0),
             "removeModule(): Invalid module address!"
         );
+        require(
+            authorizedModules[_module],
+            "removeModule(): Module is not authorized (therefore it cannot be removed)!"
+        );
     }
     function expediteModuleAddition(address _module) public onlyManager {
         require(
             _module != address(0),
-            "addModule(): Invalid module address!"
+            "expediteModuleAddition(): Invalid module address!"
         );
     }
     function cancelPendingModule(address _module) public onlyManager {
+        require(
+            _module != address(0),
+            "cancelPendingModule(): Invalid module address!"
+        );
+        // Check if you can still cancel the pending module
+        ModuleRequest memory pending;
+        pending = pendingModules[_module];
+
+        if(pending.automaticPass >= block.timestamp) { // Will pass, even if you wanted to cancel
+            authorizeModule(_module);
+            delete pendingModules[_module];
+        } else {
+            delete pendingModules[_module];
+        }
 
     }
     /*
@@ -289,7 +337,7 @@ contract Caring {
             _amount <= totalMembers && 
             _amount > 0, 
             "setMinimumMultiSig(): Invalid minimum multi-signature"
-            );
+        );
 
         if(_useSuggested)
             minimumSig = suggestedSigners(totalMembers);
@@ -304,7 +352,7 @@ contract Caring {
             _count > 0 
             && _count < (2**256) - 1, 
             "suggestedSigners(): Invalid '_count' value!"
-            );
+        );
 
         uint256 recommended;
 

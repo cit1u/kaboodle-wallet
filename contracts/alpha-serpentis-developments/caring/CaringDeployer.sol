@@ -34,9 +34,9 @@ contract CaringDeployer {
         sendDirect = _sendDirect;
     }
 
-    function deployCaringContract(address _manager, uint256 _maxManagers, string memory _contractName, bool _multiSig) external payable meetCreatorFee returns(address) {
+    function deployCaringContract(address _manager, uint256 _maxManagers, string memory _contractName, bool _multiSig, uint256 _autoAcceptTimeLength) external payable meetCreatorFee returns(address) {
 
-        address deployed = address(new Caring(_manager, _maxManagers, _contractName, _multiSig));
+        address deployed = address(new Caring(_manager, _maxManagers, _contractName, _multiSig, _autoAcceptTimeLength));
         require(deployed != address(0), "CaringDeployer: Contract creation failed!");
         emit CaringIssued(msg.sender, deployed);
 
