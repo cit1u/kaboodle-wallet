@@ -5,12 +5,14 @@
 pragma solidity ^0.7.4;
 
 import "../ERC677/ERC677Receiver.sol";
+import "../ERC677/ERC677.sol";
 import "../../openzeppelin/math/SafeMath.sol";
+import "../../openzeppelin/token/ERC20/IERC20.sol";
 
 struct ModuleRequest {
     address module; // Address of the module to add
     address proposer; // Address of the proposer
-    uint256 automaticPass; // UNIX time when the module request is automatically passed
+    uint64 automaticPass; // UNIX time when the module request is automatically passed
     address[] approved; // Addresses of managers who accepted 
 }
 
@@ -19,9 +21,9 @@ struct TransferRequest {
     address payable to; // Address of the receiving party
     address token; // If applicable
     uint256 amount; // Amount of tokens withdrawing
+    bytes32 ident; // The identifier of the TransferRequest
     address[] approved; // Current approvals
     address[] rejected; // Current rejected
-    bytes32 ident; // The identifier of the TransferRequest
     bool exists; // Used to know if it exists in the mapping or not
 }
 
@@ -42,15 +44,14 @@ contract Caring is ERC677Receiver {
     mapping(address => ModuleRequest) private pendingModules;
     mapping(address => bool) private authorizedModules;
 
-    uint256 private immutable MAX_ALLOWED_MANAGERS;
-
-    string private identifier;
-    
-    uint256 private totalManagers;
-    uint256 private totalMembers;
+    bytes private identifier;
     
     bool private multiSig;
     bool private allowModules;
+    bool private publicDeposit;
+    uint256 private immutable MAX_ALLOWED_MANAGERS;
+    uint256 private totalManagers;
+    uint256 private totalMembers;
     uint256 private minimumSig;
     uint256 private moduleAutoAcceptLength;
     uint256 private pendingTransfers;
@@ -67,22 +68,13 @@ contract Caring is ERC677Receiver {
     event ModuleRemoved(address _module);
     event ModuleAdditionCancelled(address _module, address _proposer);
     
-    modifier onlyManager {
-        require(
-            members[msg.sender].isManager, 
-            "onlyManager: Must be the manager!"
-        );
-        _;
-    }
-    modifier onlyMember {
-        require(
-            members[msg.sender].adr != address(0),
-            "onlyMember: Must be a member!"
-        );
-        _;
-    }
-    
-    constructor(address _manager, uint256 _maxManagers, string memory _contractName, bool _multiSig, uint256 _moduleAutoAcceptLength) {
+    constructor(
+        address _manager, 
+        uint256 _maxManagers, 
+        bytes memory _contractName, 
+        bool _multiSig, 
+        uint256 _moduleAutoAcceptLength) 
+    {
         require(
             _manager != address(0), 
             "Caring: Must have a manager!"
@@ -116,70 +108,62 @@ contract Caring is ERC677Receiver {
         members[_manager].allowedToDeposit = true;
         members[_manager].allowedToWithdraw = true;
     }
+
+    modifier onlyManager {
+        require(
+            members[msg.sender].isManager, 
+            "onlyManager: Must be the manager!"
+        );
+        _;
+    }
+    modifier onlyMember {
+        require(
+            members[msg.sender].adr != address(0),
+            "onlyMember: Must be a member!"
+        );
+        _;
+    }
     
     receive() payable external onlyMember() { // This does not reject mined Ether or from a selfdestruct
         emit Deposit(msg.sender, msg.value);
     }
     
-    // INTERNAL FUNCTIONS
-    function verifyMultiSig(TransferRequest memory _tx) internal {
-        if(_tx.approved.length >= minimumSig) {// If passes definitely, execute transfer
-            executeSomeTx(_tx);
-        } else if(totalMembers.sub(_tx.rejected.length) < minimumSig) { // If fails definitely, cancel the transfer
-            removePendingTx(_tx.ident);
-
-            emit TransferCancelled(pendingOutbound[_tx.ident].member, _tx.ident);
-        }
-    }
-    function addPendingTx(TransferRequest memory _tx) internal {
-        pendingOutbound[_tx.ident] = _tx;
-    }
-    function removePendingTx(bytes32 _ident) internal {
-        delete pendingOutbound[_ident];
-    }
-    function executeSomeTx(TransferRequest memory _tx) internal {
-        if(_tx.token == address(0))
-            executeEtherTx(_tx);
-        else
-            executeTokenTx(_tx);
-    }
-    function executeEtherTx(TransferRequest memory _tx) internal {
-        if(pendingOutbound[_tx.ident].exists) {
-            require(
-                pendingOutbound[_tx.ident].amount <= address(this).balance, 
-                "executeEtherTx(): Cannot withdraw more than there actually is!"
-            );
-            pendingOutbound[_tx.ident].to.transfer(pendingOutbound[_tx.ident].amount);
-
-            emit TransferExecute(pendingOutbound[_tx.ident].member, pendingOutbound[_tx.ident].to, address(0), true);
-            removePendingTx(_tx.ident);
-        }
-    }
-    function executeTokenTx(TransferRequest memory _tx) internal {
-
-    }
-    function authorizeModule(address _module) internal {
-
-    }
-    
     // TRANSFER FUNCTIONS
     
-    function requestTransfer(address payable _to, address _token, uint256 _amount) public onlyMember returns(bytes32) {
-        if(_token == address(0))
+    function requestTransfer(
+        address payable _to, 
+        address _token, 
+        uint256 _amount
+    ) 
+        public 
+        onlyMember 
+        returns(bytes32) 
+    {
+        if(_token == address(0)) {
             require(
-                address(this).balance > _amount, 
+                address(this).balance >= _amount, 
                 "requestTransfer(): Insufficient funds to withdraw!"
             );
+        } else {
+            IERC20 token;
+            token = IERC20(_token);
+            require(
+                token.balanceOf(_token) >= _amount,
+                "requestTransfer(): Insufficient funds to withdraw!"
+            );
+        }
         
-        // !!! TODO: Add ERC20 require balance check too!!!
+        bytes32 transferId;
         
-        bytes32 transferId = keccak256(abi.encode(
-            msg.sender, 
-            _to, 
-            _token, 
-            _amount,
-            userNonce[msg.sender]++
-            ));
+        transferId = keccak256(
+            abi.encode(
+                msg.sender, 
+                _to, 
+                _token, 
+                _amount,
+                userNonce[msg.sender]++
+            )
+        );
         TransferRequest memory transferReq;
         
         transferReq.member = msg.sender;
@@ -189,14 +173,27 @@ contract Caring is ERC677Receiver {
         
         if(multiSig) {
             addPendingTx(transferReq);
-            emit PendingTransfer(msg.sender, _to, _token, _amount, userNonce[msg.sender] - 1, transferId);
+            emit PendingTransfer(
+                msg.sender, 
+                _to, 
+                _token, 
+                _amount, 
+                userNonce[msg.sender] - 1, 
+                transferId
+            );
         } else {
             executeSomeTx(transferReq);
         }
         
         return transferId;
     }
-    function approveTransfer(bytes32 _index, bool _approve) public onlyMember {
+    function approveTransfer(
+        bytes32 _index, 
+        bool _approve
+    ) 
+        public 
+        onlyMember 
+    {
         require(
             multiSig, 
             "approveTransfer(): Can only be used if multi-sig mode is enabled!"
@@ -223,15 +220,33 @@ contract Caring is ERC677Receiver {
             "manualCancelTransfer(): Must be the member initiating the transfer request to cancel!"
         );
         removePendingTx(_index);
-        emit TransferCancelled(pendingOutbound[_index].member, _index);
+        emit TransferCancelled(
+            pendingOutbound[_index].member, 
+            _index
+        );
     }
-    function onTokenTransfer(address _from, uint256 _amount, bytes memory _data) public override returns(bool success) {
+    function onTokenTransfer(
+        address _from, 
+        uint256 _amount, 
+        bytes memory _data
+    ) 
+        public 
+        override 
+        returns(bool success) 
+    {
 
     }
     
     // MEMBER MANAGEMENT FUNCTIONS
     
-    function addMember(address _member, bool _allowDeposit, bool _allowWithdrawal) public onlyManager {
+    function addMember(
+        address _member, 
+        bool _allowDeposit, 
+        bool _allowWithdrawal
+    ) 
+        public 
+        onlyManager 
+    {
         members[_member].adr = _member;
         members[_member].allowedToDeposit = _allowDeposit;
         members[_member].allowedToWithdraw = _allowWithdrawal;
@@ -277,10 +292,16 @@ contract Caring is ERC677Receiver {
         
         moduleReq.module = _module;
         moduleReq.proposer = msg.sender;
-        moduleReq.automaticPass = moduleAutoAcceptLength.add(block.timestamp);
+        moduleReq.automaticPass = uint64(
+            block.timestamp.add(moduleAutoAcceptLength)
+        );
 
         pendingModules[_module] = moduleReq;
-        emit PendingModule(_module, msg.sender, moduleReq.automaticPass);
+        emit PendingModule(
+            _module, 
+            msg.sender, 
+            moduleReq.automaticPass
+        );
     }
     function removeModule(address _module) public onlyManager {
         require(
@@ -291,12 +312,18 @@ contract Caring is ERC677Receiver {
             authorizedModules[_module],
             "removeModule(): Module is not authorized (therefore it cannot be removed)!"
         );
+        delete authorizedModules[_module];
     }
     function expediteModuleAddition(address _module) public onlyManager {
         require(
             _module != address(0),
             "expediteModuleAddition(): Invalid module address!"
         );
+        require(
+            pendingModules[_module].approved.length == totalManagers,
+            "expediteModuleAddition(): Cannot be expedited; not enough approvals"
+        );
+        authorizeModule(_module);
     }
     function cancelPendingModule(address _module) public onlyManager {
         require(
@@ -323,16 +350,39 @@ contract Caring is ERC677Receiver {
     
     // SIMPLE SETTER FUNCTIONS
     
-    function setMemberAllowedToDeposit(address _member, bool _allowed) public onlyManager {
+    function setMemberAllowedToDeposit(
+        address _member, 
+        bool _allowed
+    ) 
+        public 
+        onlyManager 
+    {
         members[_member].allowedToDeposit = _allowed;
     }
-    function setMemberAllowedToWithdraw(address _member, bool _allowed) public onlyManager {
+    function setMemberAllowedToWithdraw(
+        address _member, 
+        bool _allowed
+    ) 
+        public 
+        onlyManager 
+    {
         members[_member].allowedToWithdraw = _allowed;
     }
-    function setMultiSig(bool _enable) public onlyManager {
+    function setMultiSig(
+        bool _enable
+    ) 
+        public 
+        onlyManager 
+    {
         multiSig = _enable;
     }
-    function setMinimumMultiSig(uint256 _amount, bool _useSuggested) public onlyManager {
+    function setMinimumMultiSig(
+        uint256 _amount, 
+        bool _useSuggested
+    ) 
+        public 
+        onlyManager 
+    {
         require(
             _amount <= totalMembers && 
             _amount > 0, 
@@ -347,7 +397,13 @@ contract Caring is ERC677Receiver {
 
     // MISC FUNCTIONS
 
-    function suggestedSigners(uint256 _count) public pure returns(uint256) {
+    function suggestedSigners(
+        uint256 _count
+    ) 
+        public 
+        pure 
+        returns(uint256) 
+    {
         require(
             _count > 0 
             && _count < (2**256) - 1, 
@@ -356,15 +412,14 @@ contract Caring is ERC677Receiver {
 
         uint256 recommended;
 
-        recommended = _count/2 + _count%2;
+        //recommended = _count/2 + _count%2;
+        recommended = _count.div(2).add(_count.mod(2));
 
         return recommended;
 
     }
     
-    // VIEW FUNCTIONS
-    
-    function getIdentifier() public view returns(string memory) {
+    function getIdentifier() public view returns(bytes memory) {
         return identifier;
     }
     function getTotalMembers() public view returns(uint256) {
@@ -390,6 +445,58 @@ contract Caring is ERC677Receiver {
     }
     function isManager(address _address) public view returns(bool) {
         return members[_address].isManager;
+    }
+
+    // INTERNAL FUNCTIONS
+    function verifyMultiSig(TransferRequest memory _tx) internal {
+        if(_tx.approved.length >= minimumSig) {// If passes definitely, execute transfer
+            executeSomeTx(_tx);
+        } else if(totalMembers.sub(_tx.rejected.length) < minimumSig) { // If fails definitely, cancel the transfer
+            removePendingTx(_tx.ident);
+
+            emit TransferCancelled(
+                pendingOutbound[_tx.ident].member, 
+                _tx.ident
+            );
+        }
+    }
+    function addPendingTx(TransferRequest memory _tx) internal {
+        pendingOutbound[_tx.ident] = _tx;
+    }
+    function removePendingTx(bytes32 _ident) internal {
+        delete pendingOutbound[_ident];
+    }
+    function executeSomeTx(TransferRequest memory _tx) internal {
+        if(_tx.token == address(0))
+            executeEtherTx(_tx);
+        else
+            executeTokenTx(_tx);
+    }
+    function executeEtherTx(TransferRequest memory _tx) internal {
+        if(pendingOutbound[_tx.ident].exists) {
+            require(
+                pendingOutbound[_tx.ident].amount <= address(this).balance, 
+                "executeEtherTx(): Cannot withdraw more than there actually is!"
+            );
+            pendingOutbound[_tx.ident].to.transfer(pendingOutbound[_tx.ident].amount);
+
+            emit TransferExecute(
+                pendingOutbound[_tx.ident].member, 
+                pendingOutbound[_tx.ident].to, 
+                address(0), 
+                true
+            );
+            removePendingTx(_tx.ident);
+        }
+    }
+    function executeTokenTx(TransferRequest memory _tx) internal {
+
+    }
+    function executeFallbackTokenTx(TransferRequest memory _tx) internal {
+
+    }
+    function authorizeModule(address _module) internal {
+
     }
     
 }
