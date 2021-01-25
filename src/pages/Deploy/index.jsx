@@ -1,7 +1,8 @@
-import './style.css';
 import { Nav } from '../../components/';
 
 export function Deploy() {
+    import('./style.css');
+    
     return (
         <div id="deploy-container">
             <Nav />

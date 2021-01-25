@@ -1,7 +1,8 @@
-import './style.css';
 import { Nav } from '../../components/';
 
 export function Source() {
+    import('./style.css');
+
     document.location.href = 'https://github.com/Alpha-Serpentis-Developments/Project-Sharing'
 
     return (

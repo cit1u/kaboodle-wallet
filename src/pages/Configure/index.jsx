@@ -1,7 +1,8 @@
-import './style.css';
 import { Nav } from '../../components/';
 
 export function Configure() {
+    import('./style.css');
+    
     return (
         <div id="configure-container">
             <Nav />
