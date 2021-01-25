@@ -1,5 +1,3 @@
-import { Nav } from '../../components/';
-
 export function Source() {
     import('./style.css');
 
@@ -7,7 +5,6 @@ export function Source() {
 
     return (
         <div id="source-container">
-            <Nav />
             <h1>Redirecting you...</h1>
         </div>
     );
