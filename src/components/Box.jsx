@@ -7,9 +7,11 @@ export function Box(props) {
         )
     } else {
         return (
-            <div className="box">
-                <h1 className="box-title">{props.title}</h1>
-                <div className="box-contents">{props.children}</div>
+            <div className="box box-with-title">
+                <div className="box-body">
+                    <h1 className="box-title">{props.title}</h1>
+                    <div className="box-contents">{props.children}</div>
+                </div>
             </div>
         )
     }
