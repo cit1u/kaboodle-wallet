@@ -2,7 +2,7 @@ import React from 'react';
 import { Switch, Route } from 'react-router-dom';
 import './App.css';
 import { Root, Deploy, Configure, Source } from './pages/';
-import { Nav } from './components/';
+import { Nav, Footer } from './components/';
 
 function App() {
     return (
@@ -14,6 +14,7 @@ function App() {
                 <Route path="/configure" exact={true} component={Configure} />
                 <Route path="/source" exact={true} component={Source} />
             </Switch>
+            <Footer />
         </div>
     );
 }
