@@ -73,7 +73,7 @@
 
 /* Footer */
 
-#footer{
+#footer {
     background-color: lightgray;
     padding: 45px 0;
     font-size: 15px;
@@ -82,8 +82,8 @@
     width: 100%;
 }
 
-#footer ul{
-    display:flex;
+#footer ul {
+    display: flex;
     flex-flow: row;
     justify-content: space-between;
     list-style: none;
