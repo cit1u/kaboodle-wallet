@@ -5,7 +5,7 @@ export function Footer() {
         <div id="footer">
             <ul>
                 <li>Tailored and built by <a href='https://github.com/thetayloredman'>BadBoyHaloCat</a> & <a href="https://github.com/DeveloperVulpo">Jason Diaz Jimenez</a></li>
-                <li>An Alpha Serpentis Developmemts Project</li>
+                <li>An Alpha Serpentis Developments Project</li>
                 <li>[Social Media Placeholder]</li>
             </ul>
         </div>
