@@ -65,7 +65,8 @@
     top: -15px;
 }
 
-.box.box-with-title .box-contents {
+/*                                    Commit 5fd3d3a: 69:69! >>>>> || */
+.box.box-with-title .box-contents { /* the contents of boxes w/ have titles */
     position: relative;
     top: -15px;
 }
