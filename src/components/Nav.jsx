@@ -11,6 +11,7 @@ export function Nav() {
                 <NavLink href="/configure">Configure Caring Wallet</NavLink>
                 <Divider />
                 <NavLink href="/source">Source Code</NavLink>
+                <NavLink href="/">Connect Wallet</NavLink>
             </ul>
         </div>
     );

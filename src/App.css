@@ -29,6 +29,12 @@
     font-size: 20px;
 }
 
+#nav ul li:last-child {
+    float: right;
+    top: 0
+}
+
+
 #nav ul li a {
     color: black;
     text-decoration: none;
