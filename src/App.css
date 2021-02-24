@@ -17,6 +17,7 @@
 #nav ul {
     position: relative;
     top: 15px;
+    margin-left: 25px;
 }
 
 #nav ul li {
@@ -65,8 +66,7 @@
     top: -15px;
 }
 
-/*                                    Commit 5fd3d3a: 69:69! >>>>> || */
-.box.box-with-title .box-contents { /* the contents of boxes w/ have titles */
+.box.box-with-title .box-contents {
     position: relative;
     top: -15px;
 }
