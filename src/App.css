@@ -29,7 +29,7 @@
     font-size: 20px;
 }
 
-#nav ul li:last-child {
+#nav ul li#connect-wallet {
     float: right;
     top: 0;
     margin-right: 50px;
