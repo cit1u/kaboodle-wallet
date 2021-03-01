@@ -60,14 +60,17 @@
 .box {
     background-color: lightgray;
     padding: 25px;
-    margin: 50px;
+    margin: 50px 0;
 
     -moz-box-shadow: 0px 5px 5px 0px rgba(0, 0, 0, 0.75);
     -webkit-box-shadow: 0px 5px 5px 0px rgba(0, 0, 0, 0.75);
     box-shadow: 0px 5px 5px 0px rgba(0, 0, 0, 0.75);
 
     width: 50%;
-    border-radius: 10px;
+    /* border-radius: 10px; */
+    transform: translate(50%, 50%);
+    
+    
 }
 
 .box .box-title {
@@ -78,6 +81,7 @@
 .box.box-with-title .box-contents {
     position: relative;
     top: -15px;
+    
 }
 
 /* Footer */
@@ -86,8 +90,8 @@
     background-color: lightgray;
     padding: 45px 0;
     font-size: 15px;
-    position: absolute;
-    bottom: 0;
+    /* position: absolute;
+    bottom: 0; */
     width: 100%;
 }
 
