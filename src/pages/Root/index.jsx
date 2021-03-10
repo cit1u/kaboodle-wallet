@@ -5,13 +5,14 @@ export function Root() {
 
     return (
         <div id="root-container">
-            <Box title="Project Sharing"><p>Sharing is caring my guy ☕</p></Box>
+            <div className="container">
+            <Box title="Project Sharing"><p>Sharing is caring</p></Box>
             <Box><p>box without title</p></Box>
             <Box><p>box without title</p></Box>
             <Box><p>box without title</p></Box>
             <Box><p>box without title</p></Box>
             <Box><p>box without title</p></Box>
-
+            </div>
         </div>
     );
 }

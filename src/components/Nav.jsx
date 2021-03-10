@@ -13,6 +13,9 @@ export function Nav() {
                 <NavLink href="/source">Source Code</NavLink>
                 <NavLink href="/">Connect Wallet</NavLink>
             </ul>
+            <span class="toggle">
+                <i class="fas fa-bars"></i>
+            </span>
         </div>
     );
 }

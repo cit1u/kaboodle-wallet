@@ -2,6 +2,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Lato:wght@100&display=swap');
 @import url('reset.css');
 
+
 /* nav */
 
 #nav {
@@ -12,6 +13,7 @@
     -webkit-box-shadow: 0px 5px 5px 0px rgba(0, 0, 0, 0.75);
     box-shadow: 0px 5px 5px 0px rgba(0, 0, 0, 0.75);
     margin-bottom: 25px;
+    max-width: 100%;
 }
 
 #nav ul {
@@ -49,6 +51,10 @@
     font-family: 'Lato';
 }
 
+.toggle{
+    display: none;
+}
+
 /* font */
 
 *:not(#nav *) {
@@ -60,7 +66,7 @@
 .box {
     background-color: lightgray;
     padding: 25px;
-    margin: 50px 0;
+    margin: 50px auto;
 
     -moz-box-shadow: 0px 5px 5px 0px rgba(0, 0, 0, 0.75);
     -webkit-box-shadow: 0px 5px 5px 0px rgba(0, 0, 0, 0.75);
@@ -68,8 +74,6 @@
 
     width: 50%;
     /* border-radius: 10px; */
-    transform: translate(50%, 50%);
-    
     
 }
 
@@ -104,3 +108,35 @@
     margin: 0 20px;
     align-content: center;
 }
+
+.text-center{
+    text-align: center;
+}
+
+
+
+/* @media screen and (max-width: 1080px) {
+    .container{
+        width: 100%;
+        margin: 0 auto
+    }
+    #nav{
+        padding-bottom: 300px
+    }
+    #nav ul{
+        display: flex;
+        flex-direction: column;
+    }
+    .divider{
+        display: none;
+    }
+    .toggle {
+        display: block;
+        position: absolute;
+        top: 25px;
+        right: 20px;
+        color: black;
+        font-size: 24px;
+    }
+
+} */

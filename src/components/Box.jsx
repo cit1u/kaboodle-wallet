@@ -10,7 +10,7 @@ export function Box(props) {
             <div className="box box-with-title">
                 <div className="inside">
                     <div className="box-body">
-                        <h1 className="box-title">{props.title}</h1>
+                        <h1 className="box-title text-center">{props.title}</h1>
                         <div className="box-contents">{props.children}</div>
                     </div>
                 </div>
