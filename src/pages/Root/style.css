@@ -1,0 +1,15 @@
+.connect{
+    color: white;
+    text-decoration: none;
+    padding: 5px;
+    margin: auto;
+    background-color: blueviolet;
+    /* border-radius: 15%;
+    float: right;
+    border: 1px solid black; */
+
+}
+
+.text-center{
+    text-align: center;
+}
