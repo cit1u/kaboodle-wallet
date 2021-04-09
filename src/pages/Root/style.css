@@ -1,15 +1,44 @@
-.connect{
+.wallet{
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+}
+
+.wallet .connect{
+    margin-left: 15px
+}
+
+p a.connect{
     color: white;
     text-decoration: none;
     padding: 5px;
     margin: auto;
     background-color: blueviolet;
-    /* border-radius: 15%;
-    float: right;
-    border: 1px solid black; */
+}
 
+.wallet p{
+    margin: 5px;
 }
 
 .text-center{
     text-align: center;
+}
+
+.toggle div button{
+    background-color: transparent;
+    border: none;
+    padding: 10px;
+    outline: none;
+}
+
+@media screen and (max-width: 1080px) {
+    .wallet{
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .wallet .connect{
+        margin: 15px 0
+    }
+
 }
